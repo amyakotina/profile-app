@@ -1,0 +1,51 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install app dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install test dependencies
+        run: pip install -r tests-requirements.txt
+
+      - name: Install Playwright browsers
+        run: playwright install --with-deps chromium
+
+      - name: Start the app
+        run: |
+          nohup python app.py > app.log 2>&1 &
+          echo "Waiting for app to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:5001/ > /dev/null; then
+              echo "App is up"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run tests
+        working-directory: tests
+        env:
+          APP_BASE: http://127.0.0.1:5001
+        run: pytest -v
+
+      - name: Show app logs on failure
+        if: failure()
+        run: cat app.log
