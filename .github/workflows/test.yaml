@@ -1,3 +1,4 @@
+
 name: Tests
 
 on:
@@ -30,15 +31,29 @@ jobs:
 
       - name: Start the app
         run: |
-          nohup python app.py > app.log 2>&1 &
+          nohup python -u app.py > app.log 2>&1 &
+          APP_PID=$!
+
           echo "Waiting for app to be ready..."
+
           for i in $(seq 1 30); do
             if curl -sf http://127.0.0.1:5001/ > /dev/null; then
               echo "App is up"
-              break
+              exit 0
             fi
+
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              echo "Application process stopped!"
+              cat app.log
+              exit 1
+            fi
+
             sleep 1
           done
+
+          echo "Application did not start within 30 seconds"
+          cat app.log
+          exit 1
 
       - name: Run tests
         working-directory: tests
@@ -48,4 +63,6 @@ jobs:
 
       - name: Show app logs on failure
         if: failure()
-        run: cat app.log
+        run: |
+          echo "Application logs:"
+          cat app.log
